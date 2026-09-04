@@ -129,10 +129,22 @@ if go:
     st.markdown(f"### Risk: :{color[pred]}[{pred}] | Score: {score:.1f}/100")
     r1,r2 = st.columns(2)
     with r1:
-        gauge = go.Figure(go.Indicator(mode="gauge+number",value=score,title={"text":"Stress Score"},
-            gauge={"axis":{"range":[0,100]},"bar":{"color":"darkblue"},
-                   "steps":[{"range":[0,40],"color":"#27ae60"},{"range":[40,70],"color":"#f59e0b"},{"range":[70,100],"color":"#e74c3c"}]}))
-        st.plotly_chart(gauge,use_container_width=True)
+        gauge = go.Figure()
+        gauge.add_trace(go.Indicator(
+            mode="gauge+number",
+            value=float(score),
+            title={"text": "Stress Score"},
+            gauge={
+                "axis": {"range": [0, 100]},
+                "bar": {"color": "darkblue"},
+                "steps": [
+                    {"range": [0, 40], "color": "#27ae60"},
+                    {"range": [40, 70], "color": "#f59e0b"},
+                    {"range": [70, 100], "color": "#e74c3c"}
+                ]
+            }
+        ))
+        st.plotly_chart(gauge, use_container_width=True)
     with r2:
         st.markdown("### Welfare Recommendations")
         recs = {
