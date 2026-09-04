@@ -80,7 +80,7 @@ with col2:
 st.subheader("High-Risk Personnel - Immediate Attention Required")
 high_df = df[df["risk_level"]=="High"].sort_values("deployment_months",ascending=False)
 cols = ["personnel_id","rank","age","deployment_months","duty_hours_per_day","night_shifts_per_month","incidents_exposed"]
-st.dataframe(high_df[cols].head(20).style.background_gradient(subset=["deployment_months"],cmap="Reds"), use_container_width=True)
+st.dataframe(high_df[cols].head(20), use_container_width=True)
 
 st.markdown("---")
 st.subheader("Individual Risk Assessment Tool")
