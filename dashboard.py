@@ -2,17 +2,20 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import pickle
 import plotly.express as px
 import plotly.graph_objects as go
-from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.pipeline import Pipeline
+from sklearn.model_selection import train_test_split
 
 st.set_page_config(page_title="Personnel Welfare Dashboard", page_icon="shield", layout="wide")
 
-@st.cache_resource
-def load_model():
-    with open("stress_model.pkl","rb") as f:
-        return pickle.load(f)
+FEATURES = ["age","years_of_service","deployment_months","family_separation",
+    "leave_cancel_ratio","overwork_score","transfers_last_2yr","night_shifts_per_month",
+    "incidents_exposed","training_days_yr","wellness_score","sleep_hours",
+    "exercise_freq_per_wk","social_support_score","rank_encoded","burnout_index",
+    "recovery_index","isolation_score","workload_stress","resilience_score"]
 
 @st.cache_data
 def load_data():
@@ -27,8 +30,22 @@ def load_data():
     df["resilience_score"]   = df["wellness_score"]+df["social_support_score"]+df["exercise_freq_per_wk"]
     return df
 
-saved = load_model()
-MODEL = saved["model"]; FEATS = saved["features"]; df = load_data()
+@st.cache_resource
+def train_model(df):
+    X = df[FEATURES]
+    y = df["risk_level"]
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+    model = Pipeline([
+        ("scaler", StandardScaler()),
+        ("clf", GradientBoostingClassifier(n_estimators=300, learning_rate=0.05, max_depth=5, subsample=0.8, random_state=42))
+    ])
+    model.fit(X_train, y_train)
+    return model
+
+df = load_data()
+with st.spinner("Loading AI model (first launch takes ~15 seconds)..."):
+    MODEL = train_model(df)
+FEATS = FEATURES
 
 st.sidebar.image("https://upload.wikimedia.org/wikipedia/commons/5/55/Emblem_of_India.svg", width=70)
 st.sidebar.title("Welfare Monitor")
@@ -42,9 +59,9 @@ st.caption("AI-powered early warning system for CAPF personnel welfare")
 rc = df["risk_level"].value_counts()
 c1,c2,c3,c4 = st.columns(4)
 c1.metric("Total Personnel", len(df))
-c2.metric("High Risk", rc.get("High",0), str(round(rc.get("High",0)/len(df)*100,1))+"%", delta_color="inverse")
+c2.metric("High Risk",   rc.get("High",0),   str(round(rc.get("High",0)/len(df)*100,1))+"%", delta_color="inverse")
 c3.metric("Medium Risk", rc.get("Medium",0), str(round(rc.get("Medium",0)/len(df)*100,1))+"%", delta_color="inverse")
-c4.metric("Low Risk", rc.get("Low",0), str(round(rc.get("Low",0)/len(df)*100,1))+"%")
+c4.metric("Low Risk",    rc.get("Low",0),    str(round(rc.get("Low",0)/len(df)*100,1))+"%")
 
 st.markdown("---")
 col1,col2 = st.columns(2)
@@ -60,7 +77,7 @@ with col2:
     fig2.update_layout(xaxis_tickangle=-30)
     st.plotly_chart(fig2, use_container_width=True)
 
-st.subheader("High-Risk Personnel — Immediate Attention Required")
+st.subheader("High-Risk Personnel - Immediate Attention Required")
 high_df = df[df["risk_level"]=="High"].sort_values("deployment_months",ascending=False)
 cols = ["personnel_id","rank","age","deployment_months","duty_hours_per_day","night_shifts_per_month","incidents_exposed"]
 st.dataframe(high_df[cols].head(20).style.background_gradient(subset=["deployment_months"],cmap="Reds"), use_container_width=True)
@@ -70,23 +87,23 @@ st.subheader("Individual Risk Assessment Tool")
 with st.form("f"):
     a1,a2,a3 = st.columns(3)
     with a1:
-        age = st.slider("Age",20,58,30)
-        yrs = st.slider("Years of Service",1,30,8)
-        dep = st.slider("Deployment Months",1,36,18)
-        fam = st.radio("Family Separated?",[0,1],format_func=lambda x:"Yes" if x else "No")
+        age   = st.slider("Age",20,58,30)
+        yrs   = st.slider("Years of Service",1,30,8)
+        dep   = st.slider("Deployment Months",1,36,18)
+        fam   = st.radio("Family Separated?",[0,1],format_func=lambda x:"Yes" if x else "No")
     with a2:
-        duty = st.slider("Duty Hours/Day",8.0,16.0,10.0,0.5)
-        lva = st.slider("Leaves Availed",0,30,10)
-        lvc = st.slider("Leaves Cancelled",0,30,2)
+        duty  = st.slider("Duty Hours/Day",8.0,16.0,10.0,0.5)
+        lva   = st.slider("Leaves Availed",0,30,10)
+        lvc   = st.slider("Leaves Cancelled",0,30,2)
         trans = st.slider("Transfers 2yr",0,5,1)
     with a3:
-        nights = st.slider("Night Shifts/Month",0,20,5)
-        inc = st.slider("Incidents Exposed",0,10,2)
-        sleep = st.slider("Sleep Hours",4.0,9.0,6.5,0.5)
-        ex = st.slider("Exercise Days/Week",0,7,3)
-        well = st.slider("Wellness Score",1.0,10.0,6.0,0.5)
-        soc = st.slider("Social Support",1.0,10.0,5.0,0.5)
-        rank_e = st.selectbox("Rank",[0,1,2,3,4,5,6],
+        nights  = st.slider("Night Shifts/Month",0,20,5)
+        inc     = st.slider("Incidents Exposed",0,10,2)
+        sleep   = st.slider("Sleep Hours",4.0,9.0,6.5,0.5)
+        ex      = st.slider("Exercise Days/Week",0,7,3)
+        well    = st.slider("Wellness Score",1.0,10.0,6.0,0.5)
+        soc     = st.slider("Social Support",1.0,10.0,5.0,0.5)
+        rank_e  = st.selectbox("Rank",[0,1,2,3,4,5,6],
                     format_func=lambda x:["Constable","Head Constable","ASI","SI","Inspector","DSP","SP"][x])
     go = st.form_submit_button("Predict Risk", type="primary")
 
@@ -103,10 +120,10 @@ if go:
         "isolation_score":fam*(1-soc/10),"workload_stress":nights*overwork,
         "resilience_score":well+soc+ex
     }
-    row = pd.DataFrame([inp])[FEATS]
-    pred = MODEL.predict(row)[0]
+    row   = pd.DataFrame([inp])[FEATS]
+    pred  = MODEL.predict(row)[0]
     proba = MODEL.predict_proba(row)[0]
-    pd_ = dict(zip(MODEL.classes_,[round(p*100,1) for p in proba]))
+    pd_   = dict(zip(MODEL.classes_,[round(p*100,1) for p in proba]))
     score = pd_.get("High",0)+0.5*pd_.get("Medium",0)
     color = {"High":"red","Medium":"orange","Low":"green"}
     st.markdown(f"### Risk: :{color[pred]}[{pred}] | Score: {score:.1f}/100")

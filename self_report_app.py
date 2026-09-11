@@ -1,18 +1,48 @@
 
 import streamlit as st
 import pandas as pd
-import pickle
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.pipeline import Pipeline
+from sklearn.model_selection import train_test_split
 
 st.set_page_config(page_title="Personnel Self-Check", page_icon="shield", layout="centered")
 
-@st.cache_resource
-def load_model():
-    with open("stress_model.pkl", "rb") as f:
-        return pickle.load(f)
+FEATURES = ["age","years_of_service","deployment_months","family_separation",
+    "leave_cancel_ratio","overwork_score","transfers_last_2yr","night_shifts_per_month",
+    "incidents_exposed","training_days_yr","wellness_score","sleep_hours",
+    "exercise_freq_per_wk","social_support_score","rank_encoded","burnout_index",
+    "recovery_index","isolation_score","workload_stress","resilience_score"]
 
-saved = load_model()
-MODEL = saved["model"]
-FEATS = saved["features"]
+@st.cache_data
+def load_data():
+    df = pd.read_csv("personnel_stress_data.csv")
+    df["leave_cancel_ratio"] = df["leaves_cancelled"]/(df["leaves_availed"]+1)
+    df["overwork_score"]     = (df["duty_hours_per_day"]-8).clip(lower=0)
+    df["rank_encoded"]       = LabelEncoder().fit_transform(df["rank"])
+    df["burnout_index"]      = (df["deployment_months"]*df["overwork_score"])/10
+    df["recovery_index"]     = (df["sleep_hours"]*df["exercise_freq_per_wk"])/7
+    df["isolation_score"]    = df["family_separation"]*(1-df["social_support_score"]/10)
+    df["workload_stress"]    = df["night_shifts_per_month"]*df["overwork_score"]
+    df["resilience_score"]   = df["wellness_score"]+df["social_support_score"]+df["exercise_freq_per_wk"]
+    return df
+
+@st.cache_resource
+def train_model(df):
+    X = df[FEATURES]
+    y = df["risk_level"]
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+    model = Pipeline([
+        ("scaler", StandardScaler()),
+        ("clf", GradientBoostingClassifier(n_estimators=300, learning_rate=0.05, max_depth=5, subsample=0.8, random_state=42))
+    ])
+    model.fit(X_train, y_train)
+    return model
+
+df = load_data()
+with st.spinner("Loading AI model..."):
+    MODEL = train_model(df)
+FEATS = FEATURES
 
 st.title("Personnel Wellness Self-Check")
 st.caption("Confidential - Anonymous - Takes 2 minutes")
